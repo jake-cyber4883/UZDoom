@@ -671,13 +671,24 @@ const EJoyAxis SDLInputJoystick::DefaultAxes[5] = {JOYAXIS_Side, JOYAXIS_Forward
 class SDLInputJoystickManager
 {
 public:
-	SDLInputJoystickManager()
+	// The initial scan is deferred: I_StartupJoysticks runs before the
+	// cvar system is up, and Rescan reads joy_sdl_gamecontroller. Every
+	// entry point below runs post-init and calls EnsureScan first.
+	SDLInputJoystickManager() : NeedScan(true)
 	{
-		Rescan(false);
 	}
 	~SDLInputJoystickManager()
 	{
 		Clear();
+	}
+
+	void EnsureScan()
+	{
+		if (NeedScan)
+		{
+			NeedScan = false;
+			Rescan(false);
+		}
 	}
 
 	void Clear()
@@ -692,6 +703,7 @@ public:
 
 	void Rescan(bool verbose = true)
 	{
+		NeedScan = false;
 		Clear();
 
 		TArray<FString> seenguids;
@@ -736,6 +748,7 @@ public:
 
 	void AddAxes(float axes[NUM_JOYAXIS])
 	{
+		EnsureScan();
 		for(unsigned int i = 0;i < Controllers.Size();i++)
 			if(Controllers[i]->Enabled) Controllers[i]->AddAxes(axes);
 		for(unsigned int i = 0;i < Joysticks.Size();i++)
@@ -743,27 +756,31 @@ public:
 	}
 	void GetDevices(TArray<IJoystickConfig *> &sticks)
 	{
+		EnsureScan();
 		for(unsigned int i = 0;i < Controllers.Size();i++)
 			sticks.Push(Controllers[i]);
 		for(unsigned int i = 0;i < Joysticks.Size();i++)
 			sticks.Push(Joysticks[i]);
 	}
 
-	bool IsGameControllerInstance(SDL_JoystickID instance) const
+	bool IsGameControllerInstance(SDL_JoystickID instance)
 	{
+		EnsureScan();
 		for(unsigned int i = 0;i < Controllers.Size();i++)
 			if(Controllers[i]->GetInstanceID() == instance) return true;
 		return false;
 	}
 
-	void ProcessInput() const
+	void ProcessInput()
 	{
+		EnsureScan();
 		for(unsigned int i = 0;i < Controllers.Size();++i)
 			if(Controllers[i]->Enabled) Controllers[i]->ProcessInput();
 		for(unsigned int i = 0;i < Joysticks.Size();++i)
 			if(Joysticks[i]->Enabled) Joysticks[i]->ProcessInput();
 	}
 protected:
+	bool NeedScan;
 	TArray<SDLInputGameController *> Controllers;
 	TArray<SDLInputJoystick *> Joysticks;
 };
