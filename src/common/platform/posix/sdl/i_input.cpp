@@ -48,6 +48,10 @@
 #include "engineerrors.h"
 #include "i_interface.h"
 
+// Provided by i_joystick.cpp.
+bool I_IsGameControllerInstance(int instance);
+void I_UpdateJoystickDevices();
+
 
 static void I_CheckGUICapture ();
 static void I_CheckNativeMouse ();
@@ -464,10 +468,21 @@ void MessagePump (const SDL_Event &sev)
 
 	case SDL_JOYBUTTONDOWN:
 	case SDL_JOYBUTTONUP:
+		// Devices serviced through the GameController path deliver their
+		// buttons as KEY_PAD_* events instead; raw events would double up.
+		if (I_IsGameControllerInstance(sev.jbutton.which))
+			break;
 		event.type = sev.type == SDL_JOYBUTTONDOWN ? EV_KeyDown : EV_KeyUp;
 		event.data1 = KEY_FIRSTJOYBUTTON + sev.jbutton.button;
 		if(event.data1 != 0)
 			D_PostEvent(&event);
+		break;
+
+	case SDL_JOYDEVICEADDED:
+	case SDL_JOYDEVICEREMOVED:
+		// Covers GameController devices too (they always raise the joystick
+		// event as well). Config is GUID-keyed, so a rescan loses nothing.
+		I_UpdateJoystickDevices();
 		break;
 	}
 }
